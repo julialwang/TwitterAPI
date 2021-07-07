@@ -18,6 +18,10 @@ func main() {
 		Methods("POST")
 	r.HandleFunc("/follow", controller.FollowHandler).
 		Methods("POST")
+	r.HandleFunc("/unfollow", controller.UnfollowHandler).
+		Methods("POST")
+	r.HandleFunc("/tweet", controller.TweetHandler).
+		Methods("POST")
 
 	log.Fatal(http.ListenAndServe(":8080", r))
 }

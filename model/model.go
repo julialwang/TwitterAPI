@@ -22,6 +22,7 @@ type User struct {
 	Followings []string  `json:"followings" bson:"followings"`
 	Followers  []string  `json:"followers" bson:"followers"`
 	ToFollow   string    `json:"to-follow" bson:"to-follow"`
+	NewTweet   string    `json:"new-tweet" bson:"new-tweet"`
 	// Pull the array first then update ** another table
 	// bson?
 }
