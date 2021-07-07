@@ -14,10 +14,10 @@ func main() {
 		Methods("POST")
 	r.HandleFunc("/login", controller.LoginHandler).
 		Methods("POST")
+	r.HandleFunc("/logout", controller.LogoutHandler).
+		Methods("POST")
 	r.HandleFunc("/follow", controller.FollowHandler).
 		Methods("POST")
-	r.HandleFunc("/profile", controller.ProfileHandler).
-		Methods("GET")
 
 	log.Fatal(http.ListenAndServe(":8080", r))
 }
