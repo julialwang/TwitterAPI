@@ -3,7 +3,9 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/golang-jwt/jwt"
+	"github.com/gorilla/mux"
 	"go.mongodb.org/mongo-driver/bson"
 	"golang.org/x/crypto/bcrypt"
 	"io/ioutil"
@@ -65,7 +67,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 				}},
 			)
 
-			res.Result = "Registration successful!"
+			res.Result = "Registration successful! Welcome to the team, @" + user.Username + "!"
 			json.NewEncoder(w).Encode(res)
 			return
 		}
@@ -75,7 +77,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res.Result = "Username already exists, please try another"
+	res.Result = "Username already exists, please try another :("
 	json.NewEncoder(w).Encode(res)
 	return
 }
@@ -101,7 +103,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	err = collection.FindOne(context.TODO(), bson.D{{"username", user.Username}}).Decode(&result)
 
 	if err != nil {
-		res.Error = "Invalid username"
+		res.Error = "Invalid username. Please try again!"
 		json.NewEncoder(w).Encode(res)
 		return
 	}
@@ -109,7 +111,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	err = bcrypt.CompareHashAndPassword([]byte(result.Password), []byte(user.Password))
 
 	if err != nil {
-		res.Error = "Invalid password"
+		res.Error = "Invalid password. Please try again!"
 		json.NewEncoder(w).Encode(res)
 		return
 	}
@@ -129,7 +131,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	tokenString, err := token.SignedString([]byte("secret"))
 
 	if err != nil {
-		res.Error = "Error while generating token, try again"
+		res.Error = "Fluke while generating token. Please try again!"
 		json.NewEncoder(w).Encode(res)
 		return
 	}
@@ -150,9 +152,9 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(err)
 	}
 
-	res.Result = "Login successful!"
+	res.Result = "Login successful. Welcome, " + user.FirstName + " " + user.LastName + "!"
 
-	err = json.NewEncoder(w).Encode(result)
+	err = json.NewEncoder(w).Encode(res)
 	if err != nil {
 		return
 	}
@@ -183,7 +185,7 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !result.LoggedIn {
-		res.Error = "User is already logged out"
+		res.Error = "User @" + user.Username + " is already logged out."
 		json.NewEncoder(w).Encode(res)
 	} else {
 		_, err = collection.UpdateOne(
@@ -199,10 +201,9 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		res.Result = "Logout successful!"
+		res.Result = "Logout successful! See you soon, " + user.FirstName + " " + user.LastName + "!"
 		json.NewEncoder(w).Encode(res)
 	}
-	json.NewEncoder(w).Encode(result)
 	return
 }
 
@@ -231,7 +232,7 @@ func FollowHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !result.LoggedIn {
-		res.Error = "User is not logged in -- please authenticate before following"
+		res.Error = "You are not logged in -- Please authenticate before trying to follow users."
 		json.NewEncoder(w).Encode(res)
 	} else {
 		if result.Followings == nil {
@@ -257,7 +258,7 @@ func FollowHandler(w http.ResponseWriter, r *http.Request) {
 		)
 		err = collection.FindOne(context.TODO(), bson.D{{"username", user.ToFollow}}).Decode(&result)
 		if err != nil {
-			res.Error = "Cannot follow this user; the provided username is invalid"
+			res.Error = "Cannot follow this user; The provided username is not a real user."
 			json.NewEncoder(w).Encode(res)
 			return
 		}
@@ -274,10 +275,9 @@ func FollowHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		res.Result = "Successfully followed new user"
+		res.Result = "Successfully followed new user. Your new friend is @" + user.ToFollow + "!"
 		json.NewEncoder(w).Encode(res)
 	}
-	json.NewEncoder(w).Encode(result)
 	return
 }
 
@@ -314,7 +314,7 @@ func UnfollowHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		_, err = collection.UpdateOne(
 			context.TODO(),
-			bson.D{{"username", result.Username}},
+			bson.D{{"username", user.Username}},
 			bson.D{{"$pull",
 				bson.D{
 					{"followings", user.ToFollow},
@@ -323,7 +323,7 @@ func UnfollowHandler(w http.ResponseWriter, r *http.Request) {
 		)
 		err = collection.FindOne(context.TODO(), bson.D{{"username", user.ToFollow}}).Decode(&result)
 		if err != nil {
-			res.Error = "Failed to unfollow, as you are were never following this user"
+			res.Error = "Failed to unfollow @" + user.ToFollow + ", as you are were never actually following them in the first place."
 			json.NewEncoder(w).Encode(res)
 			return
 		}
@@ -340,10 +340,9 @@ func UnfollowHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		res.Result = "Successfully unfollowed user"
+		res.Result = "Successfully unfollowed user @" + user.ToFollow + ". Bye!"
 		json.NewEncoder(w).Encode(res)
 	}
-	json.NewEncoder(w).Encode(result)
 	return
 }
 
@@ -372,7 +371,7 @@ func TweetHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !result.LoggedIn {
-		res.Error = "User is not logged in -- please authenticate before tweeting"
+		res.Error = "You are not logged in -- Please authenticate before tweeting!"
 		json.NewEncoder(w).Encode(res)
 	} else {
 		if result.Tweets == nil {
@@ -402,6 +401,69 @@ func TweetHandler(w http.ResponseWriter, r *http.Request) {
 		res.Result = "Successfully tweeted at " + string(time.Now().Format("01-02-2006 15:04:05"))
 		json.NewEncoder(w).Encode(res)
 	}
+	return
+}
+
+func FetchHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	var user model.User
+	body, _ := ioutil.ReadAll(r.Body)
+	err := json.Unmarshal(body, &user)
+	if err != nil {
+		log.Fatal(err)
+	}
+	collection, err := db.GetDBCollection()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	var result model.User
+	var res model.ResponseResult
+	var tweets []string
+
+	err = collection.FindOne(context.TODO(), bson.D{{"username", user.Username}}).Decode(&result)
+
+	if err != nil {
+		res.Error = "Invalid username"
+		log.Fatal(err)
+		json.NewEncoder(w).Encode(res)
+		return
+	}
+	if !result.LoggedIn {
+		res.Error = "User is not logged in -- please authenticate before fetching tweets"
+		json.NewEncoder(w).Encode(res)
+	} else {
+		if result.Tweets == nil {
+			res.Result = "You haven't made any tweets before :( Try using the /tweet endpoint"
+		}
+	}
+	arr, err := collection.Distinct(context.TODO(), "tweets", &tweets)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(arr)
+	json.NewEncoder(w).Encode(arr)
+	return
+}
+
+func ProfileHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("content-type", "application/json")
+	params := mux.Vars(r)
+	var user model.User
+	body, _ := ioutil.ReadAll(r.Body)
+	err := json.Unmarshal(body, &user)
+	if err != nil {
+		log.Fatal(err)
+	}
+	collection, err := db.GetDBCollection()
+	fmt.Println(user)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var result model.User
+
+	err = collection.FindOne(context.TODO(), bson.D{{"username", params["username"]}}).Decode(&result)
+	fmt.Println(params["username"])
 	json.NewEncoder(w).Encode(result)
 	return
 }
