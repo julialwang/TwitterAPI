@@ -2,10 +2,9 @@ package main
 
 import (
 	"github.com/gorilla/mux"
-	"twitter-feed/controller"
-	//"twitter-feed/model"
 	"log"
 	"net/http"
+	"twitter-feed/controller"
 )
 
 func main() {
@@ -22,8 +21,8 @@ func main() {
 		Methods("POST")
 	r.HandleFunc("/tweet", controller.TweetHandler).
 		Methods("POST")
-	r.HandleFunc("/fetch", controller.FetchHandler).
-		Methods("POST")
+	//r.HandleFunc("/fetch", controller.FetchHandler).
+	//	Methods("GET")
 	r.HandleFunc("/profile/{username}", controller.ProfileHandler).
 		Methods("GET")
 

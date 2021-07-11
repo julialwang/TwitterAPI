@@ -5,26 +5,21 @@ import (
 	"time"
 )
 
-type Status struct {
-	CurrentUser string `json:"current-user"`
-	FollowUser  string `json:"follow-user"`
-}
-
 type User struct {
-	Username   string    `json:"username"`
-	FirstName  string    `json:"firstname"`
-	LastName   string    `json:"lastname"`
-	Password   string    `json:"password"`
-	Token      string    `json:"token"`
-	LoggedIn   bool      `json:"logged-in" bson:"logged-in"`
-	Bio        string    `json:"bio" bson:"bio"`
-	Tweets     *[]string `json:"tweets" bson:"tweets"`
-	Followings []string  `json:"followings" bson:"followings"`
-	Followers  []string  `json:"followers" bson:"followers"`
-	ToFollow   string    `json:"to-follow" bson:"to-follow"`
-	NewTweet   string    `json:"new-tweet" bson:"new-tweet"`
-	// Pull the array first then update ** another table
-	// bson?
+	Username   string   `json:"username"`
+	FirstName  string   `json:"firstname"`
+	LastName   string   `json:"lastname"`
+	Password   string   `json:"password"`
+	Token      string   `json:"token"`
+	LoggedIn   bool     `json:"logged-in" bson:"logged-in"`
+	Bio        string   `json:"bio" bson:"bio"`
+	Tweets     []string `json:"tweets" bson:"tweets"`
+	Followings []string `json:"followings" bson:"followings"`
+	Followers  []string `json:"followers" bson:"followers"`
+	ToFollow   string   `json:"to-follow" bson:"to-follow"`
+	NewTweet   string   `json:"new-tweet" bson:"new-tweet"`
+	// separate username/following mapping
+	// separate tweet table out, add dates and stuff
 }
 
 type ResponseResult struct {

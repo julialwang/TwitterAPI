@@ -3,18 +3,21 @@ package controller
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/golang-jwt/jwt"
 	"github.com/gorilla/mux"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 	"twitter-feed/config/db"
 	"twitter-feed/model"
 )
+
+var collection *mongo.Collection
 
 func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 
@@ -30,17 +33,17 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(res)
 		return
 	}
-	collection, err := db.GetDBCollection()
-	if err != nil {
-		res.Error = err.Error()
-		json.NewEncoder(w).Encode(res)
-		return
-	}
+	DBStart()
 	var result model.User
 	err = collection.FindOne(context.TODO(), bson.D{{"username", user.Username}}).Decode(&result)
 
 	if err != nil {
 		if err.Error() == "mongo: no documents in result" {
+			if len(user.Password) < 8 || !strings.ContainsAny(user.Password, "1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 } 0") {
+				res.Error = "Passwords must be longer than 8 characters and contain at least one number and letter."
+				json.NewEncoder(w).Encode(res)
+				return
+			}
 			hash, err := bcrypt.GenerateFromPassword([]byte(user.Password), 5)
 
 			if err != nil {
@@ -55,7 +58,6 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 				json.NewEncoder(w).Encode(res)
 				return
 			}
-
 			_, err = collection.UpdateOne(
 				context.TODO(),
 				bson.D{{"username", user.Username}},
@@ -63,6 +65,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 					bson.D{
 						{"followings", make([]string, 0)},
 						{"followers", make([]string, 0)},
+						{"token", "tokens are always thoroughly randomized"},
 					},
 				}},
 			)
@@ -91,12 +94,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	collection, err := db.GetDBCollection()
-
-	if err != nil {
-		log.Fatal(err)
-	}
+	DBStart()
 	var result model.User
 	var res model.ResponseResult
 
@@ -169,11 +167,7 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	collection, err := db.GetDBCollection()
-
-	if err != nil {
-		log.Fatal(err)
-	}
+	DBStart()
 	var result model.User
 	var res model.ResponseResult
 
@@ -215,11 +209,7 @@ func FollowHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	collection, err := db.GetDBCollection()
-
-	if err != nil {
-		log.Fatal(err)
-	}
+	DBStart()
 	var result model.User
 	var res model.ResponseResult
 
@@ -289,11 +279,7 @@ func UnfollowHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	collection, err := db.GetDBCollection()
-
-	if err != nil {
-		log.Fatal(err)
-	}
+	DBStart()
 	var result model.User
 	var res model.ResponseResult
 
@@ -354,11 +340,7 @@ func TweetHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	collection, err := db.GetDBCollection()
-
-	if err != nil {
-		log.Fatal(err)
-	}
+	DBStart()
 	var result model.User
 	var res model.ResponseResult
 
@@ -404,48 +386,6 @@ func TweetHandler(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-func FetchHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	var user model.User
-	body, _ := ioutil.ReadAll(r.Body)
-	err := json.Unmarshal(body, &user)
-	if err != nil {
-		log.Fatal(err)
-	}
-	collection, err := db.GetDBCollection()
-
-	if err != nil {
-		log.Fatal(err)
-	}
-	var result model.User
-	var res model.ResponseResult
-	var tweets []string
-
-	err = collection.FindOne(context.TODO(), bson.D{{"username", user.Username}}).Decode(&result)
-
-	if err != nil {
-		res.Error = "Invalid username"
-		log.Fatal(err)
-		json.NewEncoder(w).Encode(res)
-		return
-	}
-	if !result.LoggedIn {
-		res.Error = "User is not logged in -- please authenticate before fetching tweets"
-		json.NewEncoder(w).Encode(res)
-	} else {
-		if result.Tweets == nil {
-			res.Result = "You haven't made any tweets before :( Try using the /tweet endpoint"
-		}
-	}
-	arr, err := collection.Distinct(context.TODO(), "tweets", &tweets)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(arr)
-	json.NewEncoder(w).Encode(arr)
-	return
-}
-
 func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("content-type", "application/json")
 	params := mux.Vars(r)
@@ -455,15 +395,62 @@ func ProfileHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	collection, err := db.GetDBCollection()
-	fmt.Println(user)
-	if err != nil {
-		log.Fatal(err)
-	}
+	DBStart()
 	var result model.User
 
 	err = collection.FindOne(context.TODO(), bson.D{{"username", params["username"]}}).Decode(&result)
-	fmt.Println(params["username"])
 	json.NewEncoder(w).Encode(result)
 	return
 }
+
+func DBStart() {
+	var err error
+	collection, err = db.GetDBCollection()
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+//func FetchHandler(w http.ResponseWriter, r *http.Request) {
+//	w.Header().Set("Content-Type", "application/json")
+//	var user model.User
+//	body, _ := ioutil.ReadAll(r.Body)
+//	err := json.Unmarshal(body, &user)
+//	if err != nil {
+//		log.Fatal(err)
+//	}
+//	collection, err := db.GetDBCollection()
+//
+//	if err != nil {
+//		log.Fatal(err)
+//	}
+//	var result model.User
+//	var res model.ResponseResult
+//	var tweets []string
+//
+//	err = collection.FindOne(context.TODO(), bson.D{{"username", user.Username}}).Decode(&result)
+//
+//	if err != nil {
+//		res.Error = "Invalid username"
+//		log.Fatal(err)
+//		json.NewEncoder(w).Encode(res)
+//		return
+//	}
+//	if !result.LoggedIn {
+//		res.Error = "User is not logged in -- please authenticate before fetching tweets"
+//		json.NewEncoder(w).Encode(res)
+//	} else {
+//		if result.Tweets == nil {
+//			res.Result = "You haven't made any tweets before :( Try using the /tweet endpoint"
+//		}
+//	}
+//	arr, err := collection.Distinct(context.TODO(), "tweets", &tweets)
+//	// something to turn this back into json
+//	arrJSON, _ := json.Marshal(arr)
+//	if err != nil {
+//		log.Fatal(err)
+//	}
+//	fmt.Println(arr)
+//	json.NewEncoder(w).Encode(string(arrJSON))
+//	return
+//}
