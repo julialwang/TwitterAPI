@@ -21,8 +21,6 @@ func main() {
 		Methods("POST")
 	r.HandleFunc("/tweet", controller.TweetHandler).
 		Methods("POST")
-	//r.HandleFunc("/fetch", controller.FetchHandler).
-	//	Methods("GET")
 	r.HandleFunc("/profile/{username}", controller.ProfileHandler).
 		Methods("GET")
 
