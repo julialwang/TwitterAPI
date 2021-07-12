@@ -1,8 +1,8 @@
 # TwitterAPI
 
-Design and implement a twitter feed API, which should have the following APIs:
-* Create User
-* Login User
-* Follow/Unfollow user
-* Post a tweet
-* Get list of tweets
+Twitter feed API exercise that has the following endpoints:
+* Create user (/register)
+* Login/Logout user (/login & /logout)
+* Follow/Unfollow user (/follow & /unfollow)
+* Post a tweet (/tweet)
+* Get user info (/profile)
