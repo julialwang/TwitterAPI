@@ -327,12 +327,6 @@ func TweetHandler(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(res)
 	} else {
 		if result.Tweets == nil {
-			if strings.TrimSpace(result.NewTweet) == "" {
-				res.Error = "Aren't you going to say anything in your Tweet? Write something!"
-				log.Fatal(err)
-				json.NewEncoder(w).Encode(res)
-				return
-			}
 			_, err = collection.UpdateOne(
 				context.TODO(),
 				bson.D{{"username", result.Username}},
@@ -342,6 +336,11 @@ func TweetHandler(w http.ResponseWriter, r *http.Request) {
 					},
 				}},
 			)
+		}
+		if strings.TrimSpace(result.NewTweet) == "" {
+			res.Error = "Aren't you going to say anything in your Tweet? Write something!"
+			json.NewEncoder(w).Encode(res)
+			return
 		}
 		_, err = collection.UpdateOne(
 			context.TODO(),
