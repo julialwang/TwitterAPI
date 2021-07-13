@@ -337,7 +337,7 @@ func TweetHandler(w http.ResponseWriter, r *http.Request) {
 				}},
 			)
 		}
-		if strings.TrimSpace(result.NewTweet) == "" {
+		if strings.TrimSpace(user.NewTweet) == "" {
 			res.Error = "Aren't you going to say anything in your Tweet? Write something!"
 			json.NewEncoder(w).Encode(res)
 			return
