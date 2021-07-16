@@ -23,6 +23,10 @@ func main() {
 		Methods("POST")
 	r.HandleFunc("/profile/{username}", controller.ProfileHandler).
 		Methods("GET")
+	r.HandleFunc("/timeline", controller.TimelineHandler).
+		Methods("GET")
+	r.HandleFunc("/delete", controller.DeleteHandler).
+		Methods("POST")
 
 	log.Fatal(http.ListenAndServe(":8080", r))
 }
