@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	guuid "github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"go.mongodb.org/mongo-driver/bson"
@@ -451,7 +450,9 @@ func TimelineHandler(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-// DeleteHandler Deletes the user's account
+// DeleteHandler Deletes the user's account, and any traces of them from the accounts of other users as well
+// Requires: username
+// Handled edges: User should be logged in to delete account
 func DeleteHandler(w http.ResponseWriter, r *http.Request) {
 	var result model.User
 	var res model.ResponseResult
@@ -473,30 +474,38 @@ func DeleteHandler(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(res)
 	} else {
 		var removal model.User
-		fmt.Println("for everyone following me")
-		fmt.Println(result.Followers)
 		for i := 0; i < len(result.Followers); i++ { // for everyone following me...
 			collection.FindOne(context.TODO(), bson.D{{"username", result.Followers[i]}}).Decode(&removal)
 			for j := 0; j < len(removal.Followings); j++ { // search for me in each of the people they follow...
 				if removal.Followings[j] == result.Username {
 					removal.Followings = append(removal.Followings[:j], removal.Followings[j+1:]...) // ...and delete myself
+					_, err = collection.UpdateOne(
+						context.TODO(),
+						bson.D{{"username", removal.Username}},
+						bson.D{{"$set",
+							bson.D{
+								{"followings", removal.Followings},
+							},
+						}},
+					)
 					break
 				}
 			}
 		}
-		fmt.Println("for everyone i'm a follower of")
-		fmt.Println(result.Followings)
 		for i := 0; i < len(result.Followings); i++ { // for everyone i'm a follower of...
-			fmt.Println("herereeeee")
 			collection.FindOne(context.TODO(), bson.D{{"username", result.Followings[i]}}).Decode(&removal)
 			for j := 0; j < len(removal.Followers); j++ { // search for me in each of their followers...
-				fmt.Println(len(removal.Followers))
 				if removal.Followers[j] == result.Username {
-					fmt.Println("how about here")
 					removal.Followers = append(removal.Followers[:j], removal.Followers[j+1:]...) // ...and delete myself
-
-					//TODO: update in DDB
-					fmt.Println(removal.Followers)
+					_, err = collection.UpdateOne(
+						context.TODO(),
+						bson.D{{"username", removal.Username}},
+						bson.D{{"$set",
+							bson.D{
+								{"followers", removal.Followers},
+							},
+						}},
+					)
 					break
 				}
 			}
