@@ -11,8 +11,7 @@ type User struct {
 	Bio          string      `json:"bio" bson:"bio"`
 	Followings   []string    `json:"followings" bson:"followings"`
 	Followers    []string    `json:"followers" bson:"followers"`
-	ToFollow     string      `json:"to-follow" bson:"to-follow"`
-	NewTweet     string      `json:"new-tweet" bson:"new-tweet"`
+	Input        string      `json:"input" bson:"input"`
 	TweetIDs     []uuid.UUID `json:"tweetids" bson:"tweetids"`
 }
 

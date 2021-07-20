@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	guuid "github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"go.mongodb.org/mongo-driver/bson"
@@ -12,6 +13,8 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 	"twitter-feed/config/db"
@@ -216,11 +219,11 @@ func FollowHandler(w http.ResponseWriter, r *http.Request) {
 			bson.D{{"username", result.Username}},
 			bson.D{{"$addToSet",
 				bson.D{
-					{"followings", user.ToFollow},
+					{"followings", user.Input},
 				},
 			}},
 		)
-		err = collection.FindOne(context.TODO(), bson.D{{"username", user.ToFollow}}).Decode(&result)
+		err = collection.FindOne(context.TODO(), bson.D{{"username", user.Input}}).Decode(&result)
 		if err != nil {
 			res.Error = "Cannot follow this user; The provided username is not a real user."
 			json.NewEncoder(w).Encode(res)
@@ -228,7 +231,7 @@ func FollowHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		_, err = collection.UpdateOne(
 			context.TODO(),
-			bson.D{{"username", user.ToFollow}},
+			bson.D{{"username", user.Input}},
 			bson.D{{"$addToSet",
 				bson.D{
 					{"followers", user.Username},
@@ -238,7 +241,7 @@ func FollowHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		res.Result = "Successfully followed new user. Your new friend is @" + user.ToFollow + "!"
+		res.Result = "Successfully followed new user. Your new friend is @" + user.Input + "!"
 		json.NewEncoder(w).Encode(res)
 	}
 	return
@@ -276,19 +279,19 @@ func UnfollowHandler(w http.ResponseWriter, r *http.Request) {
 			bson.D{{"username", user.Username}},
 			bson.D{{"$pull",
 				bson.D{
-					{"followings", user.ToFollow},
+					{"followings", user.Input},
 				},
 			}},
 		)
-		err = collection.FindOne(context.TODO(), bson.D{{"username", user.ToFollow}}).Decode(&result)
+		err = collection.FindOne(context.TODO(), bson.D{{"username", user.Input}}).Decode(&result)
 		if err != nil {
-			res.Error = "Failed to unfollow @" + user.ToFollow + ", as you are were never actually following them in the first place."
+			res.Error = "Failed to unfollow @" + user.Input + ", as you are were never actually following them in the first place."
 			json.NewEncoder(w).Encode(res)
 			return
 		}
 		_, err = collection.UpdateOne(
 			context.TODO(),
-			bson.D{{"username", user.ToFollow}},
+			bson.D{{"username", user.Input}},
 			bson.D{{"$pull",
 				bson.D{
 					{"followers", user.Username},
@@ -298,7 +301,7 @@ func UnfollowHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		res.Result = "Successfully unfollowed user @" + user.ToFollow + ". Bye!"
+		res.Result = "Successfully unfollowed user @" + user.Input + ". Bye!"
 		json.NewEncoder(w).Encode(res)
 	}
 	return
@@ -340,7 +343,7 @@ func TweetHandler(w http.ResponseWriter, r *http.Request) {
 				}},
 			)
 		}
-		if strings.TrimSpace(user.NewTweet) == "" {
+		if strings.TrimSpace(user.Input) == "" {
 			res.Error = "Aren't you going to say anything in your Tweet? Write something!"
 			json.NewEncoder(w).Encode(res)
 			return
@@ -359,7 +362,7 @@ func TweetHandler(w http.ResponseWriter, r *http.Request) {
 			log.Fatal(err)
 		}
 		tweet.ID = id
-		tweet.Text = user.NewTweet
+		tweet.Text = user.Input
 		tweet.Date = time.Now().Local().Format("2006-01-02")
 		tweet.Time = time.Now().Local().Format("15:04:05")
 		_, err = collection.InsertOne(context.TODO(), tweet)
@@ -518,6 +521,110 @@ func DeleteHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		res.Result = "You've successfully deleted your account, " + result.FirstName + " " + result.LastName + "!"
+		json.NewEncoder(w).Encode(res)
+	}
+	return
+}
+
+// UntweetHandler Deletes the specified tweet in chronology for the specified user
+// Requires: username, tweet number
+// Handled edges: User should be logged in to delete tweets, and tweet number must exist
+func UntweetHandler(w http.ResponseWriter, r *http.Request) {
+	var result model.User
+	var res model.ResponseResult
+	var user model.User
+	w.Header().Set("Content-Type", "application/json")
+	body, _ := ioutil.ReadAll(r.Body)
+	err := json.Unmarshal(body, &user)
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = collection.FindOne(context.TODO(), bson.D{{"username", user.Username}}).Decode(&result)
+	if err != nil {
+		res.Error = "Invalid username"
+		json.NewEncoder(w).Encode(res)
+		return
+	}
+	if !result.ActiveStatus {
+		res.Error = "You are not logged in -- Please authenticate before deleting tweets!"
+		json.NewEncoder(w).Encode(res)
+	} else {
+		i, _ := strconv.Atoi(user.Input)
+		var index = i - 1
+		id := result.TweetIDs[index]
+		result.TweetIDs = append(result.TweetIDs[:index], result.TweetIDs[index+1:]...) //
+		_, err = collection.UpdateOne(
+			context.TODO(),
+			bson.D{{"username", result.Username}},
+			bson.D{{"$set",
+				bson.D{
+					{"tweetids", result.TweetIDs},
+				},
+			}},
+		)
+		_, err := collection.DeleteOne(context.TODO(), bson.M{"id": id})
+		if err != nil {
+			fmt.Printf("remove failure %v\n", err)
+			os.Exit(1)
+		}
+		res.Result = "You've successfully deleted your tweet!"
+		json.NewEncoder(w).Encode(res)
+	}
+	return
+}
+
+// UpdateHandler Allows the user to change their password.
+// Requires: username, password
+func UpdateHandler(w http.ResponseWriter, r *http.Request) {
+	var result model.User
+	var res model.ResponseResult
+	var user model.User
+	w.Header().Set("Content-Type", "application/json")
+	body, _ := ioutil.ReadAll(r.Body)
+	err := json.Unmarshal(body, &user)
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = collection.FindOne(context.TODO(), bson.D{{"username", user.Username}}).Decode(&result)
+	if err != nil {
+		res.Error = "Invalid username"
+		json.NewEncoder(w).Encode(res)
+		return
+	}
+	if !result.ActiveStatus {
+		res.Error = "You are not logged in -- Please authenticate before changing your password!"
+		json.NewEncoder(w).Encode(res)
+	} else {
+		if len(user.Input) < 8 || !strings.ContainsAny(user.Input, "1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 } 0") {
+			res.Error = "Passwords must be longer than 8 characters and contain at least one number and letter."
+			json.NewEncoder(w).Encode(res)
+			return
+		}
+		hash, err := bcrypt.GenerateFromPassword([]byte(result.Input), 5)
+		if err != nil {
+			res.Error = "Error while hashing password, please try again"
+			json.NewEncoder(w).Encode(res)
+			return
+		}
+		err = bcrypt.CompareHashAndPassword(hash, []byte(user.Password))
+		if err == nil {
+			res.Error = "That's the same password! Input a new one to change it."
+			json.NewEncoder(w).Encode(res)
+			return
+		}
+		_, err = collection.UpdateOne(
+			context.TODO(),
+			bson.D{{"username", result.Username}},
+			bson.D{{"$set",
+				bson.D{
+					{"password", hash},
+				},
+			}},
+		)
+		if err != nil {
+			log.Fatal(err)
+		}
+		res.Result = "Password update successful! Don't forget your new combination!"
 		json.NewEncoder(w).Encode(res)
 	}
 	return

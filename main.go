@@ -27,6 +27,10 @@ func main() {
 		Methods("GET")
 	r.HandleFunc("/delete", controller.DeleteHandler).
 		Methods("POST")
+	r.HandleFunc("/untweet", controller.UntweetHandler).
+		Methods("POST")
+	r.HandleFunc("/update", controller.UpdateHandler).
+		Methods("POST")
 
 	log.Fatal(http.ListenAndServe(":8080", r))
 }
